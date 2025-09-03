@@ -1,5 +1,7 @@
 // utils/db.mjs
-import { MongoClient } from 'mongodb';
+import mongodb from 'mongodb';
+
+const { MongoClient } = mongodb;
 
 class DBClient {
   constructor() {
@@ -8,15 +10,17 @@ class DBClient {
     const database = process.env.DB_DATABASE || 'files_manager';
     const url = `mongodb://${host}:${port}`;
 
+    this.dbName = database;
     this.client = new MongoClient(url, { useUnifiedTopology: true });
     this.connected = false;
+
     this.client.connect()
       .then(() => {
-        this.db = this.client.db(database);
+        this.db = this.client.db(this.dbName);
         this.connected = true;
       })
       .catch((err) => {
-        console.error('MongoDB connection error:', err);
+        console.error('MongoDB connection error:', err.message || err);
         this.connected = false;
       });
   }
@@ -26,6 +30,7 @@ class DBClient {
   }
 
   collection(name) {
+    if (!this.db) return null;
     return this.db.collection(name);
   }
 
