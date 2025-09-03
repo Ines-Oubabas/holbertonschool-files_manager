@@ -4,7 +4,7 @@ import path from 'path';
 import imageThumbnail from 'image-thumbnail';
 import Queue from 'bull';
 import { ObjectId } from 'mongodb';
-import dbClient from './utils/db.mjs';
+import dbClient from './utils/db';
 
 const fileQueue = new Queue('fileQueue');
 
