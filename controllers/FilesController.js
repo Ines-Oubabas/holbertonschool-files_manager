@@ -150,8 +150,7 @@ class FilesController {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { id } = req.params;
-    const _id = new ObjectId(id);
+    const _id = new ObjectId(req.params.id);
     const file = await dbClient.collection('files').findOne({ _id, userId: user._id });
     if (!file) return res.status(404).json({ error: 'Not found' });
 
@@ -164,18 +163,18 @@ class FilesController {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { id } = req.params;
-    const file = await dbClient.collection('files').findOne({ _id: new ObjectId(id), userId: user._id });
+    const _id = new ObjectId(req.params.id);
+    const file = await dbClient.collection('files').findOne({ _id, userId: user._id });
     if (!file) return res.status(404).json({ error: 'Not found' });
 
-    await dbClient.collection('files').updateOne({ _id: new ObjectId(id) }, { $set: { isPublic: false } });
-    const updated = await dbClient.collection('files').findOne({ _id: new ObjectId(id) });
+    await dbClient.collection('files').updateOne({ _id }, { $set: { isPublic: false } });
+    const updated = await dbClient.collection('files').findOne({ _id });
     return res.status(200).json(presentFile(updated));
   }
 
   static async getFile(req, res) {
     const { id } = req.params;
-    const { size } = req.query;
+    const size = req.query.size;
 
     let file;
     try {
@@ -195,7 +194,7 @@ class FilesController {
 
     if (file.type === 'folder') return res.status(400).json({ error: "A folder doesn't have content" });
 
-    let { localPath } = file;
+    let localPath = file.localPath;
     if (size && ['500', '250', '100'].includes(String(size))) {
       localPath = `${file.localPath}_${size}`;
     }
