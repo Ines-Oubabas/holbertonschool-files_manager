@@ -164,12 +164,12 @@ class FilesController {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const _id = new ObjectId(req.params.id);
-    const file = await dbClient.collection('files').findOne({ _id, userId: user._id });
+    const { id } = req.params;
+    const file = await dbClient.collection('files').findOne({ _id: new ObjectId(id), userId: user._id });
     if (!file) return res.status(404).json({ error: 'Not found' });
 
-    await dbClient.collection('files').updateOne({ _id }, { $set: { isPublic: false } });
-    const updated = await dbClient.collection('files').findOne({ _id });
+    await dbClient.collection('files').updateOne({ _id: new ObjectId(id) }, { $set: { isPublic: false } });
+    const updated = await dbClient.collection('files').findOne({ _id: new ObjectId(id) });
     return res.status(200).json(presentFile(updated));
   }
 
