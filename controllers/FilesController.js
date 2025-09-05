@@ -126,14 +126,24 @@ class FilesController {
 
     const page = Number.isNaN(parseInt(req.query.page, 10)) ? 0 : parseInt(req.query.page, 10);
     const parentId = req.query.parentId;
-    const parentNorm = normalizeParentId(parentId);
+    
+    // Fix: Handle undefined/missing parentId properly
+    let parentNorm;
+    if (parentId === undefined || parentId === null) {
+      parentNorm = 0;  // Default to root level when no parentId provided
+    } else {
+      parentNorm = normalizeParentId(parentId);
+    }
 
-    const match = parentNorm === 0
-      ? { userId: user._id, parentId: 0 }
-      : { userId: user._id, parentId: (parentNorm || null) };
+    // If parentId was provided but is invalid ObjectId -> return empty
+    if (parentId !== undefined && parentId !== null && parentNorm === null) {
+      return res.status(200).json([]);
+    }
 
-    // If parentId invalid ObjectId was provided -> return empty
-    if (parentId && parentNorm === null) return res.status(200).json([]);
+    const match = { 
+      userId: user._id, 
+      parentId: parentNorm 
+    };
 
     const pipeline = [
       { $match: match },
@@ -142,8 +152,13 @@ class FilesController {
       { $limit: 20 },
     ];
 
-    const docs = await dbClient.collection('files').aggregate(pipeline).toArray();
-    return res.status(200).json(docs.map(presentFile));
+    try {
+      const docs = await dbClient.collection('files').aggregate(pipeline).toArray();
+      return res.status(200).json(docs.map(presentFile));
+    } catch (error) {
+      console.error('Error in getIndex:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   }
 
   static async putPublish(req, res) {
