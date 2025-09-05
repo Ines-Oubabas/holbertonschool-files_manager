@@ -20,13 +20,31 @@ function ensureFolder(p) {
 
 async function getUserFromToken(req) {
   const token = req.header('X-Token');
+  console.log('Getting user from token:', token ? 'Token present' : 'No token');
+  
   if (!token) return null;
   
   try {
+    // Check if Redis is alive
+    if (!redisClient.isAlive()) {
+      console.error('Redis is not alive');
+      return null;
+    }
+    
     const userId = await redisClient.get(`auth_${token}`);
+    console.log('User ID from Redis:', userId);
+    
     if (!userId) return null;
     
+    // Check if DB is alive
+    if (!dbClient.isAlive()) {
+      console.error('MongoDB is not alive');
+      return null;
+    }
+    
     const user = await dbClient.collection('users').findOne({ _id: new ObjectId(userId) });
+    console.log('User found:', user ? 'Yes' : 'No');
+    
     return user || null;
   } catch (error) {
     console.error('Error in getUserFromToken:', error);
@@ -119,33 +137,28 @@ class FilesController {
     }
   }
 
-  /**
-   * GET /files/:id - Retrieve file document by ID
-   * Requirements:
-   * - Retrieve user based on token, return 401 if not found
-   * - Return 404 if no file document linked to user and ID
-   * - Return the file document otherwise
-   */
   static async getShow(req, res) {
+    console.log('getShow called with ID:', req.params.id);
+    
     try {
-      // Retrieve the user based on the token
       const user = await getUserFromToken(req);
       if (!user) {
+        console.log('No user found, returning 401');
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      // Find the file document based on ID and user
+      console.log('User found, looking for file...');
       const file = await dbClient.collection('files').findOne({
         _id: new ObjectId(req.params.id),
         userId: user._id,
       });
 
-      // If no file document is linked to the user and ID, return 404
       if (!file) {
+        console.log('File not found, returning 404');
         return res.status(404).json({ error: 'Not found' });
       }
 
-      // Return the file document
+      console.log('File found, returning file data');
       return res.status(200).json(presentFile(file));
     } catch (error) {
       console.error('Error in getShow:', error);
@@ -153,37 +166,39 @@ class FilesController {
     }
   }
 
-  /**
-   * GET /files - Retrieve all user file documents with pagination
-   * Requirements:
-   * - Retrieve user based on token, return 401 if not found
-   * - Support parentId query parameter (default: 0 = root)
-   * - Support page query parameter (default: 0, 20 items per page)
-   * - Use MongoDB aggregate for pagination
-   * - No validation of parentId needed - return empty list if not linked
-   */
   static async getIndex(req, res) {
+    console.log('getIndex called');
+    console.log('Query params:', req.query);
+    
     try {
-      // Retrieve the user based on the token
+      // Check DB connection first
+      if (!dbClient.isAlive()) {
+        console.error('Database is not connected');
+        return res.status(500).json({ error: 'Database connection error' });
+      }
+
+      console.log('Getting user from token...');
       const user = await getUserFromToken(req);
       if (!user) {
+        console.log('No user found, returning 401');
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      // Parse query parameters
+      console.log('User found:', user._id.toString());
+
       const page = Number.isNaN(parseInt(req.query.page, 10)) ? 0 : parseInt(req.query.page, 10);
       const parentId = req.query.parentId;
       
-      // Handle parentId - default to 0 (root) if not provided
+      console.log('Page:', page, 'ParentId:', parentId);
+
+      // Handle parentId
       let parentNorm;
       if (parentId === undefined || parentId === null || parentId === '') {
         parentNorm = 0;
+        console.log('No parentId provided, using root (0)');
       } else {
         parentNorm = normalizeParentId(parentId);
-        // If parentId is invalid ObjectId, still proceed (will return empty list)
-        if (parentNorm === null) {
-          parentNorm = parentId; // Keep original value for query
-        }
+        console.log('Normalized parentId:', parentNorm);
       }
 
       // Build match criteria
@@ -192,7 +207,19 @@ class FilesController {
         parentId: parentNorm
       };
 
-      // Build aggregation pipeline with pagination
+      console.log('Match criteria:', JSON.stringify(match));
+
+      // Simple query first to test connection
+      try {
+        console.log('Testing simple count query...');
+        const count = await dbClient.collection('files').countDocuments(match);
+        console.log('Found', count, 'files matching criteria');
+      } catch (countError) {
+        console.error('Count query failed:', countError);
+        return res.status(500).json({ error: 'Database query error' });
+      }
+
+      // Build aggregation pipeline
       const pipeline = [
         { $match: match },
         { $sort: { _id: 1 } },
@@ -200,11 +227,13 @@ class FilesController {
         { $limit: 20 },
       ];
 
-      // Execute aggregation
+      console.log('Running aggregation pipeline...');
       const docs = await dbClient.collection('files').aggregate(pipeline).toArray();
       
-      // Return the list of file documents
-      return res.status(200).json(docs.map(presentFile));
+      console.log('Found', docs.length, 'files');
+      const result = docs.map(presentFile);
+      
+      return res.status(200).json(result);
     } catch (error) {
       console.error('Error in getIndex:', error);
       return res.status(500).json({ error: 'Internal server error' });
