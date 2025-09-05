@@ -9,7 +9,7 @@ import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
 
 const fileQueue = new Queue('fileQueue');
-
+//test
 const FOLDER_PATH = process.env.FOLDER_PATH && process.env.FOLDER_PATH.trim().length
   ? process.env.FOLDER_PATH
   : '/tmp/files_manager';
