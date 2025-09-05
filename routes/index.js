@@ -22,7 +22,7 @@ router.get('/users/me', UsersController.getMe);
 // Task 5
 router.post('/files', FilesController.postUpload);
 
-// Task 6
+// Task 6 - New endpoints as requested
 router.get('/files/:id', FilesController.getShow);
 router.get('/files', FilesController.getIndex);
 

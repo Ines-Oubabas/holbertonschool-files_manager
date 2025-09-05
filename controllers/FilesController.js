@@ -23,18 +23,10 @@ async function getUserFromToken(req) {
   if (!token) return null;
   
   try {
-    const userId = await Promise.race([
-      redisClient.get(`auth_${token}`),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), 5000))
-    ]);
-    
+    const userId = await redisClient.get(`auth_${token}`);
     if (!userId) return null;
     
-    const user = await Promise.race([
-      dbClient.collection('users').findOne({ _id: new ObjectId(userId) }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('MongoDB timeout')), 5000))
-    ]);
-    
+    const user = await dbClient.collection('users').findOne({ _id: new ObjectId(userId) });
     return user || null;
   } catch (error) {
     console.error('Error in getUserFromToken:', error);
@@ -127,49 +119,80 @@ class FilesController {
     }
   }
 
+  /**
+   * GET /files/:id - Retrieve file document by ID
+   * Requirements:
+   * - Retrieve user based on token, return 401 if not found
+   * - Return 404 if no file document linked to user and ID
+   * - Return the file document otherwise
+   */
   static async getShow(req, res) {
     try {
+      // Retrieve the user based on the token
       const user = await getUserFromToken(req);
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
+      // Find the file document based on ID and user
       const file = await dbClient.collection('files').findOne({
         _id: new ObjectId(req.params.id),
         userId: user._id,
       });
-      if (!file) return res.status(404).json({ error: 'Not found' });
 
+      // If no file document is linked to the user and ID, return 404
+      if (!file) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      // Return the file document
       return res.status(200).json(presentFile(file));
     } catch (error) {
       console.error('Error in getShow:', error);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(404).json({ error: 'Not found' });
     }
   }
 
+  /**
+   * GET /files - Retrieve all user file documents with pagination
+   * Requirements:
+   * - Retrieve user based on token, return 401 if not found
+   * - Support parentId query parameter (default: 0 = root)
+   * - Support page query parameter (default: 0, 20 items per page)
+   * - Use MongoDB aggregate for pagination
+   * - No validation of parentId needed - return empty list if not linked
+   */
   static async getIndex(req, res) {
     try {
+      // Retrieve the user based on the token
       const user = await getUserFromToken(req);
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
+      // Parse query parameters
       const page = Number.isNaN(parseInt(req.query.page, 10)) ? 0 : parseInt(req.query.page, 10);
       const parentId = req.query.parentId;
       
-      // Handle parentId properly - when undefined, default to 0 (root level)
+      // Handle parentId - default to 0 (root) if not provided
       let parentNorm;
       if (parentId === undefined || parentId === null || parentId === '') {
         parentNorm = 0;
       } else {
         parentNorm = normalizeParentId(parentId);
-        // If parentId was provided but is invalid ObjectId -> return empty array
+        // If parentId is invalid ObjectId, still proceed (will return empty list)
         if (parentNorm === null) {
-          return res.status(200).json([]);
+          parentNorm = parentId; // Keep original value for query
         }
       }
 
-      const match = { 
-        userId: user._id, 
-        parentId: parentNorm 
+      // Build match criteria
+      const match = {
+        userId: user._id,
+        parentId: parentNorm
       };
 
+      // Build aggregation pipeline with pagination
       const pipeline = [
         { $match: match },
         { $sort: { _id: 1 } },
@@ -177,12 +200,10 @@ class FilesController {
         { $limit: 20 },
       ];
 
-      // Add timeout to the aggregation query
-      const docs = await Promise.race([
-        dbClient.collection('files').aggregate(pipeline).toArray(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout')), 10000))
-      ]);
-
+      // Execute aggregation
+      const docs = await dbClient.collection('files').aggregate(pipeline).toArray();
+      
+      // Return the list of file documents
       return res.status(200).json(docs.map(presentFile));
     } catch (error) {
       console.error('Error in getIndex:', error);
