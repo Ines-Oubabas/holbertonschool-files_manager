@@ -122,20 +122,74 @@ class FilesController {
   }
 
   static async getShow(req, res) {
+    console.log('=== getShow DEBUG START ===');
+    console.log('Request params:', req.params);
+    console.log('Request headers X-Token:', req.header('X-Token'));
+    
     try {
+      console.log('1. Getting user from token...');
       const user = await getUserFromToken(req);
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      console.log('User found:', user ? 'YES' : 'NO');
+      
+      if (!user) {
+        console.log('Returning 401 - Unauthorized');
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
+      console.log('2. User ID:', user._id.toString());
+      console.log('3. File ID from params:', req.params.id);
+
+      // Vérification de la validité de l'ObjectId
+      let objectId;
+      try {
+        objectId = new ObjectId(req.params.id);
+        console.log('4. ObjectId created successfully:', objectId);
+      } catch (idError) {
+        console.log('4. Invalid ObjectId:', idError.message);
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      console.log('5. Getting files collection...');
       const filesCollection = await dbClient.collection('files');
-      const file = await filesCollection.findOne({
-        _id: new ObjectId(req.params.id),
+      console.log('Files collection obtained:', filesCollection ? 'YES' : 'NO');
+
+      console.log('6. Searching for file with query:', {
+        _id: objectId,
         userId: user._id.toString(),
       });
 
-      if (!file) return res.status(404).json({ error: 'Not found' });
-      return res.status(200).json(presentFile(file));
+      const file = await filesCollection.findOne({
+        _id: objectId,
+        userId: user._id.toString(),
+      });
+
+      console.log('7. File found:', file ? 'YES' : 'NO');
+      if (file) {
+        console.log('File details:', {
+          id: file._id,
+          name: file.name,
+          userId: file.userId,
+          type: file.type
+        });
+      }
+
+      if (!file) {
+        console.log('Returning 404 - Not found');
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      console.log('8. Presenting file and returning 200');
+      const result = presentFile(file);
+      console.log('Presented file:', result);
+      
+      return res.status(200).json(result);
     } catch (error) {
+      console.log('=== ERROR in getShow ===');
+      console.log('Error:', error);
+      console.log('Stack:', error.stack);
       return res.status(404).json({ error: 'Not found' });
+    } finally {
+      console.log('=== getShow DEBUG END ===');
     }
   }
 
