@@ -1,8 +1,8 @@
 // controllers/AuthController.js
 import sha1 from 'sha1';
 import { v4 as uuidv4 } from 'uuid';
-import dbClient from '../utils/db';
-import redisClient from '../utils/redis';
+import dbClient from '../utils/db.mjs';
+import redisClient from '../utils/redis.mjs';
 
 function decodeBasicAuth(header) {
   // header like: "Basic xxxxxxxxx"

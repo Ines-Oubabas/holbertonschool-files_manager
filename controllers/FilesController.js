@@ -5,8 +5,8 @@ import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import mime from 'mime-types';
 import Queue from 'bull';
-import dbClient from '../utils/db';
-import redisClient from '../utils/redis';
+import dbClient from '../utils/db.mjs';
+import redisClient from '../utils/redis.mjs';
 
 const fileQueue = new Queue('fileQueue');
 
