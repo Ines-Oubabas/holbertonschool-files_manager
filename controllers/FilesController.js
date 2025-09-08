@@ -19,19 +19,50 @@ function ensureFolder(p) {
 }
 
 async function getUserFromToken(req) {
+  console.log('=== getUserFromToken DEBUG ===');
   const token = req.header('X-Token');
-  if (!token) return null;
+  console.log('Token from header:', token);
+  
+  if (!token) {
+    console.log('No token provided');
+    return null;
+  }
 
   try {
-    if (!redisClient.isAlive()) return null;
-    const userId = await redisClient.get(`auth_${token}`);
-    if (!userId) return null;
-    if (!dbClient.isAlive()) return null;
+    console.log('1. Checking Redis connection...');
+    if (!redisClient.isAlive()) {
+      console.log('Redis not alive');
+      return null;
+    }
+    console.log('Redis is alive');
 
+    console.log('2. Getting userId from Redis with key:', `auth_${token}`);
+    const userId = await redisClient.get(`auth_${token}`);
+    console.log('UserId from Redis:', userId);
+    
+    if (!userId) {
+      console.log('No userId found in Redis');
+      return null;
+    }
+
+    console.log('3. Checking DB connection...');
+    if (!dbClient.isAlive()) {
+      console.log('DB not alive');
+      return null;
+    }
+    console.log('DB is alive');
+
+    console.log('4. Getting users collection...');
     const usersCollection = await dbClient.collection('users');
+    console.log('Users collection obtained');
+
+    console.log('5. Finding user with ObjectId:', userId);
     const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+    console.log('User found:', user ? 'YES' : 'NO');
+    
     return user || null;
   } catch (error) {
+    console.log('Error in getUserFromToken:', error);
     return null;
   }
 }
