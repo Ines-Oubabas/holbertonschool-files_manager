@@ -4,9 +4,9 @@ import path from 'path';
 import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import mime from 'mime-types';
+import Queue from 'bull';
 import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
-import Queue from 'bull';
 
 const fileQueue = new Queue('fileQueue');
 
@@ -125,7 +125,7 @@ class FilesController {
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
     const page = Number.isNaN(parseInt(req.query.page, 10)) ? 0 : parseInt(req.query.page, 10);
-    const parentId = req.query.parentId;
+    const { parentId } = req.query;
     const parentNorm = normalizeParentId(parentId);
 
     const match = parentNorm === 0
@@ -174,7 +174,7 @@ class FilesController {
 
   static async getFile(req, res) {
     const { id } = req.params;
-    const size = req.query.size;
+    const { size } = req.query;
 
     let file;
     try {
@@ -194,7 +194,7 @@ class FilesController {
 
     if (file.type === 'folder') return res.status(400).json({ error: "A folder doesn't have content" });
 
-    let localPath = file.localPath;
+    let { localPath } = file;
     if (size && ['500', '250', '100'].includes(String(size))) {
       localPath = `${file.localPath}_${size}`;
     }
