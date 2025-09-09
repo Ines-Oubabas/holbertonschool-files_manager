@@ -1,8 +1,8 @@
 // controllers/UsersController.js
 import sha1 from 'sha1';
 import { ObjectId } from 'mongodb';
-import dbClient from '../utils/db.mjs';
-import redisClient from '../utils/redis.mjs';
+import dbClient from '../utils/db';
+import redisClient from '../utils/redis';
 
 class UsersController {
   static async postNew(req, res) {
