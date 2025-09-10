@@ -27,14 +27,14 @@ async function getUserFromToken(req) {
     if (!userId) return null;
     const user = await dbClient.collection('users').findOne({ _id: new ObjectId(userId) });
     return user || null;
-  } catch {
+  } catch (e) {
     return null;
   }
 }
 
 function normalizeParentId(parentId) {
   if (!parentId || parentId === 0 || parentId === '0') return 0;
-  try { return new ObjectId(parentId); } catch { return null; }
+  try { return new ObjectId(parentId); } catch (e) { return null; }
 }
 
 function presentFile(doc) {
@@ -49,7 +49,7 @@ function presentFile(doc) {
 }
 
 class FilesController {
-  // ----- Task 5: upload (inchangé) -----
+  // ----- Task 5: upload (unchanged) -----
   static async postUpload(req, res) {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -95,7 +95,7 @@ class FilesController {
     try {
       const buffer = Buffer.from(data, 'base64');
       fs.writeFileSync(localPath, buffer);
-    } catch {
+    } catch (e) {
       return res.status(500).json({ error: 'Cannot store file' });
     }
     doc.localPath = localPath;
@@ -118,7 +118,7 @@ class FilesController {
     let _id;
     try {
       _id = new ObjectId(req.params.id);
-    } catch {
+    } catch (e) {
       return res.status(404).json({ error: 'Not found' });
     }
 
@@ -128,7 +128,7 @@ class FilesController {
     return res.status(200).json(presentFile(file));
   }
 
-  // ----- Task 6: getIndex (pagination/parentId robustes) -----
+  // ----- Task 6: getIndex -----
   static async getIndex(req, res) {
     try {
       const user = await getUserFromToken(req);
@@ -140,11 +140,9 @@ class FilesController {
       let parentNorm = 0;
       if (parentId !== undefined) {
         parentNorm = normalizeParentId(parentId);
-        // Spec: aucune validation → si invalide, retourner liste vide
         if (parentNorm === null) return res.status(200).json([]);
       }
 
-      // Certains datasets stockent la racine en 0 ou en '0'
       const parentMatch = (parentNorm === 0)
         ? { $or: [{ parentId: 0 }, { parentId: '0' }] }
         : { parentId: parentNorm };
@@ -200,7 +198,7 @@ class FilesController {
     let file;
     try {
       file = await dbClient.collection('files').findOne({ _id: new ObjectId(id) });
-    } catch {
+    } catch (e) {
       return res.status(404).json({ error: 'Not found' });
     }
     if (!file) return res.status(404).json({ error: 'Not found' });
