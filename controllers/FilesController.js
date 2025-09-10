@@ -19,11 +19,19 @@ function ensureFolder(p) {
 }
 
 async function getUserFromToken(req) {
+  console.log('getUserFromToken called');
   const token = req.header('X-Token');
+  console.log('Token from header:', token ? 'present' : 'not present');
   if (!token) return null;
+  
+  console.log('Getting userId from redis...');
   const userId = await redisClient.get(`auth_${token}`);
+  console.log('UserId from redis:', userId ? 'found' : 'not found');
   if (!userId) return null;
+  
+  console.log('Getting user from database...');
   const user = await dbClient.collection('users').findOne({ _id: new ObjectId(userId) });
+  console.log('User from database:', user ? 'found' : 'not found');
   return user || null;
 }
 
