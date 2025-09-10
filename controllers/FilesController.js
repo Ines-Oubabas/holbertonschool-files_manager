@@ -128,22 +128,26 @@ class FilesController {
     const { parentId } = req.query;
     const parentNorm = normalizeParentId(parentId);
 
-    const match = parentNorm === 0
-      ? { userId: user._id, parentId: 0 }
-      : { userId: user._id, parentId: (parentNorm || null) };
-
     // If parentId invalid ObjectId was provided -> return empty
     if (parentId && parentNorm === null) return res.status(200).json([]);
 
-    const pipeline = [
-      { $match: match },
-      { $sort: { _id: 1 } },
-      { $skip: page * 20 },
-      { $limit: 20 },
-    ];
+    const match = parentNorm === 0
+      ? { userId: user._id, parentId: 0 }
+      : { userId: user._id, parentId: (parentNorm || 0) };
 
-    const docs = await dbClient.collection('files').aggregate(pipeline).toArray();
-    return res.status(200).json(docs.map(presentFile));
+    try {
+      const files = await dbClient.collection('files')
+        .find(match)
+        .sort({ _id: 1 })
+        .skip(page * 20)
+        .limit(20)
+        .toArray();
+
+      return res.status(200).json(files.map(presentFile));
+    } catch (error) {
+      console.error('Error in getIndex:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   }
 
   static async putPublish(req, res) {
