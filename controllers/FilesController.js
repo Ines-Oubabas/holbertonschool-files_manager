@@ -5,8 +5,8 @@ import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import mime from 'mime-types';
 import Queue from 'bull';
-import dbClient from '../utils/db';
-import redisClient from '../utils/redis';
+import dbClient from '../utils/db.mjs';
+import redisClient from '../utils/redis.mjs';
 
 const fileQueue = new Queue('fileQueue');
 
@@ -19,20 +19,19 @@ function ensureFolder(p) {
 }
 
 async function getUserFromToken(req) {
-  console.log('getUserFromToken called');
   const token = req.header('X-Token');
-  console.log('Token from header:', token ? 'present' : 'not present');
   if (!token) return null;
-  
-  console.log('Getting userId from redis...');
-  const userId = await redisClient.get(`auth_${token}`);
-  console.log('UserId from redis:', userId ? 'found' : 'not found');
-  if (!userId) return null;
-  
-  console.log('Getting user from database...');
-  const user = await dbClient.collection('users').findOne({ _id: new ObjectId(userId) });
-  console.log('User from database:', user ? 'found' : 'not found');
-  return user || null;
+
+  try {
+    const userId = await redisClient.get(`auth_${token}`);
+    if (!userId) return null;
+
+    const user = await dbClient.collection('users').findOne({ _id: new ObjectId(userId) });
+    return user || null;
+  } catch (error) {
+    console.error('Error in getUserFromToken:', error);
+    return null;
+  }
 }
 
 function normalizeParentId(parentId) {
@@ -134,14 +133,17 @@ class FilesController {
 
     const page = Number.isNaN(parseInt(req.query.page, 10)) ? 0 : parseInt(req.query.page, 10);
     const { parentId } = req.query;
-    const parentNorm = normalizeParentId(parentId);
 
-    // If parentId invalid ObjectId was provided -> return empty
-    if (parentId && parentNorm === null) return res.status(200).json([]);
+    let parentNorm = 0;
+    if (parentId) {
+      parentNorm = normalizeParentId(parentId);
+      if (parentNorm === null) return res.status(200).json([]);
+    }
 
-    const match = parentNorm === 0
-      ? { userId: user._id, parentId: 0 }
-      : { userId: user._id, parentId: (parentNorm || 0) };
+    const match = {
+      userId: user._id,
+      parentId: parentNorm,
+    };
 
     try {
       const files = await dbClient.collection('files')
@@ -162,12 +164,12 @@ class FilesController {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const _id = new ObjectId(req.params.id);
-    const file = await dbClient.collection('files').findOne({ _id, userId: user._id });
+    const id = new ObjectId(req.params.id);
+    const file = await dbClient.collection('files').findOne({ _id: id, userId: user._id });
     if (!file) return res.status(404).json({ error: 'Not found' });
 
-    await dbClient.collection('files').updateOne({ _id }, { $set: { isPublic: true } });
-    const updated = await dbClient.collection('files').findOne({ _id });
+    await dbClient.collection('files').updateOne({ _id: id }, { $set: { isPublic: true } });
+    const updated = await dbClient.collection('files').findOne({ _id: id });
     return res.status(200).json(presentFile(updated));
   }
 
@@ -175,12 +177,12 @@ class FilesController {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const _id = new ObjectId(req.params.id);
-    const file = await dbClient.collection('files').findOne({ _id, userId: user._id });
+    const id = new ObjectId(req.params.id);
+    const file = await dbClient.collection('files').findOne({ _id: id, userId: user._id });
     if (!file) return res.status(404).json({ error: 'Not found' });
 
-    await dbClient.collection('files').updateOne({ _id }, { $set: { isPublic: false } });
-    const updated = await dbClient.collection('files').findOne({ _id });
+    await dbClient.collection('files').updateOne({ _id: id }, { $set: { isPublic: false } });
+    const updated = await dbClient.collection('files').findOne({ _id: id });
     return res.status(200).json(presentFile(updated));
   }
 
